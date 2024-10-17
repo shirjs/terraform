@@ -1,11 +1,17 @@
 variable "vpc_cidr" {
-  description = "CIDR block for the VPC"
+  description = "cidr block for the vpc"
   type = string
   default = "10.0.0.0/16"
 }
 
+variable "vpc_name" {
+  description = "name of the vpc"
+  type = string
+  default = "main-vpc"
+}
+
 variable "azs" {
-  description = "Availability Zones"
+  description = "availability zones"
   type = list(string)
   default = ["us-east-1a", "us-east-1b"]
 }
@@ -17,7 +23,8 @@ variable "public_subnet_cidrs" {
 }
 
 variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private subnets"
+  description = "cidr blocks for public subnets"
   type = list(string)
   default = ["10.0.128.0/20", "10.0.144.0/20"]
 }
+
