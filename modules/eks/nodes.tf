@@ -2,8 +2,7 @@ resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = var.node_group_name
   node_role_arn   = aws_iam_role.eks_node_group.arn
-  subnet_ids      = data.terraform_remote_state.vpc.outputs.private_subnet_ids
-
+  subnet_ids      = var.private_subnet_ids
   instance_types = var.node_group_instance_types
 
   scaling_config {
@@ -11,6 +10,13 @@ resource "aws_eks_node_group" "main" {
     max_size     = var.node_group_max_size
     min_size     = var.node_group_min_size
   }
+
+  tags = merge(
+    var.tags,
+    {
+      "Name" = var.node_group_name
+    }
+  )
 
   depends_on = [
     aws_iam_role_policy_attachment.eks_node_group_AmazonEKSWorkerNodePolicy,
@@ -34,6 +40,8 @@ resource "aws_iam_role" "eks_node_group" {
       }
     ]
   })
+
+  tags = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "eks_node_group_AmazonEKSWorkerNodePolicy" {
