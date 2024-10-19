@@ -31,4 +31,11 @@ instances-project is based on:
 - vpc-project
 
 # alb-project
-TODO
+alb-project is based on:
+2 root modules:
+- vpc-project
+- instances-project
+
+and requires to be functional:
+1 root module:
+vpc-config-project

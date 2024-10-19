@@ -77,7 +77,7 @@ resource "aws_lb_listener_rule" "gitlab" {
 
   condition {
     host_header {
-      values = ["gitlab1.yawa19.com"]
+      values = ["gitlab.yawa19.com"]
     }
   }
 }
@@ -112,7 +112,7 @@ resource "aws_lb_listener_rule" "jenkins" {
 
   condition {
     host_header {
-      values = ["jenkins1.yawa19.com"]
+      values = ["jenkins.yawa19.com"]
     }
   }
 }
@@ -147,7 +147,7 @@ resource "aws_lb_listener_rule" "weatherapp" {
 
   condition {
     host_header {
-      values = ["app1.yawa19.com"]
+      values = ["app.yawa19.com"]
     }
   }
 }
@@ -179,7 +179,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_route53_record" "gitlab" {
   zone_id = var.route53_zone_id
-  name = "gitlab1.yawa19.com"
+  name = "gitlab.yawa19.com"
   type = "CNAME"
   ttl = "300"
   records = [aws_lb.main.dns_name]
@@ -187,7 +187,7 @@ resource "aws_route53_record" "gitlab" {
 
 resource "aws_route53_record" "jenkins" {
   zone_id = var.route53_zone_id
-  name = "jenkins1.yawa19.com"
+  name = "jenkins.yawa19.com"
   type = "CNAME"
   ttl = "300"
   records = [aws_lb.main.dns_name]
@@ -195,7 +195,7 @@ resource "aws_route53_record" "jenkins" {
 
 resource "aws_route53_record" "app" {
   zone_id = var.route53_zone_id
-  name = "app1.yawa19.com"
+  name = "app.yawa19.com"
   type = "CNAME"
   ttl = "300"
   records = [aws_lb.main.dns_name]
