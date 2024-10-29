@@ -44,3 +44,10 @@ variable "api_execution_arn" {
   description = "Execution ARN of the API Gateway"
   type        = string
 }
+
+variable "environment_variables" {
+  description = "Environment variables for the Lambda function"
+  type = map(string)
+  default = {}
+}
+

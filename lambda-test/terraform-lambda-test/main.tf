@@ -32,6 +32,7 @@ resource "aws_iam_role_policy_attachment" "lambda_policy" {
   role = aws_iam_role.lambda_role.name
 }
 
+# first function
 module "hello_lambda" {
   source = "../../modules/lambda_api_integration"
   lambda_function_name = "hello_function"
@@ -41,6 +42,30 @@ module "hello_lambda" {
   api_execution_arn = module.api_gateway.api_execution_arn
   route_path = "hello"
   deployment_package_path = "../src/lambda_functions/test_function/deployment_package.zip"
+
+  environment_variables = {
+    PYTHONPATH = "/var/task/package"
+  }
+}
+
+# second function
+module "github_manifest_lambda" {
+  source = "../../modules/lambda_api_integration"
+
+  lambda_function_name = "github_manifest_function"
+  lambda_handler = "lambda_function.lambda_handler"
+  lambda_role_arn = aws_iam_role.lambda_role.arn
+  api_id = module.api_gateway.api_id
+  api_execution_arn = module.api_gateway.api_execution_arn
+  route_path = "deploy"
+
+  deployment_package_path = "../src/lambda_functions/github_manifest_function/deployment_package.zip"
+
+  environment_variables = {
+    PYTHONPATH = "/var/task/package"
+    GITHUB_TOKEN = var.github_token
+    GITHUB_REPO = var.github_repo
+  }
 }
 
 
@@ -55,6 +80,12 @@ module "website" {
       api_endpoint = module.api_gateway.api_endpoint
       route_path = "hello"
       button_text = "activate function"
+    },
+    {
+      function_name = module.github_manifest_lambda.lambda_function_name
+      api_endpoint = module.api_gateway.api_endpoint
+      route_path = "deploy"
+      button_text = "deploy to k3s"
     }
   ]
 }
@@ -63,5 +94,16 @@ resource "random_string" "suffix" {
   length = 8
   special = false
   upper = false
+}
+
+variable "github_token" {
+  description = "github access"
+  type = string 
+  sensitive = true
+}
+
+variable "github_repo" {
+  description = "github repo name"
+  type = string
 }
 

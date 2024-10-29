@@ -8,9 +8,7 @@ resource "aws_lambda_function" "lambda" {
   timeout = var.lambda_timeout
 
   environment {
-    variables = {
-      PYTHONPATH = "/var/task/package"
-    }
+    variables = var.environment_variables
   }
 }
 
