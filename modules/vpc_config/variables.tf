@@ -17,4 +17,3 @@ variable "private_subnet_ids" {
   description = "list of private subnet ids"
   type = list(string)
 }
-

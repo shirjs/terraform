@@ -14,7 +14,7 @@ resource "aws_eip" "nat" {
 }
 
 resource "aws_nat_gateway" "main" {
-  count = length(var.public_subnet_ids)
+  count = length(var.public_subnet_ids) # only need one nat gateway atm
   allocation_id = aws_eip.nat[count.index].id
   subnet_id = var.public_subnet_ids[count.index]
   tags = {

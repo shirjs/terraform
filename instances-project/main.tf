@@ -13,6 +13,10 @@ data "aws_iam_instance_profile" "system_manager_profile" {
   name = "aws_system_manager_role"
 }
 
+data "aws_iam_instance_profile" "jenkins_controller_ec2_role" {
+  name = "jenkins_controller_ec2_role"
+}
+
 resource "aws_instance" "gitlab" {
   ami = var.gitlab_ami
   instance_type = "t2.large"
@@ -31,7 +35,7 @@ resource "aws_instance" "jenkins_controller" {
   instance_type = "t2.medium"
   subnet_id = data.terraform_remote_state.vpc.outputs.private_subnet_ids[0]
   private_ip = "10.0.143.155"
-  iam_instance_profile = data.aws_iam_instance_profile.system_manager_profile.name
+  iam_instance_profile = data.aws_iam_instance_profile.jenkins_controller_ec2_role.name
   vpc_security_group_ids = [aws_security_group.jenkins_controller.id]
 
   tags = {
