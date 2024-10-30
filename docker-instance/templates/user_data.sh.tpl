@@ -62,7 +62,7 @@ sleep 30
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.5/deploy/static/provider/cloud/deploy.yaml 
 
 # wait for ingress controller to be ready
-sleep 300
+sleep 150
 
 # configure coredns for wildcard DNS 
 cat <<EOF | kubectl apply -f -

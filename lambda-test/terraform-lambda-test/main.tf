@@ -8,6 +8,13 @@ module "api_gateway" {
   api_name = "hello-api"
 }
 
+data "terraform_remote_state" "k3s_instance" {
+  backend = "local"
+  config = {
+    path = "../../docker-instance/terraform.tfstate"
+  }
+}
+
 # iam roles will be used across lambda functions
 resource "aws_iam_role" "lambda_role" {
   name = "hello_lambda_role"
@@ -65,8 +72,8 @@ module "github_manifest_lambda" {
     PYTHONPATH = "/var/task/package"
     GITHUB_TOKEN = var.github_token
     GITHUB_REPO = var.github_repo
-    K3S_INSTANCE_IP = var.k3s_instance_ip
-  }
+    K3S_INSTANCE_IP = data.terraform_remote_state.k3s_instance.outputs.instance_public_ip
+}
 }
 
 
