@@ -65,6 +65,7 @@ module "github_manifest_lambda" {
     PYTHONPATH = "/var/task/package"
     GITHUB_TOKEN = var.github_token
     GITHUB_REPO = var.github_repo
+    K3S_INSTANCE_IP = var.k3s_instance_ip
   }
 }
 
@@ -104,6 +105,11 @@ variable "github_token" {
 
 variable "github_repo" {
   description = "github repo name"
+  type = string
+}
+
+variable "k3s_instance_ip" {
+  description = "ip of the k3 instance"
   type = string
 }
 
@@ -158,10 +164,15 @@ locals {
             border-radius: 4px;
             cursor: pointer;
             transition: background-color 0.3s;
+            margin-right: 10px;
         }
         button:hover {
             background-color: #0056b3;
         }
+        button.delete {
+            background-color: #dc3545;
+        }
+
         .response {
             margin-top: 20px;
             padding: 10px;
@@ -190,8 +201,9 @@ locals {
 
         <div class="button-container">
             <button onclick="deployToK3s()">Deploy to k3s</button>
-            <div id="response" class="response"></div>
+            <button onclick="deleteFromK3s()" class="delete">Delete all</button>
         </div>
+        <div id="response" class="response"></div>
     </div>
 
     <script>
@@ -219,6 +231,32 @@ locals {
                         developer_id: developerId,
                         image_name: imageName,
                         port: parseInt(port, 10)
+                    })
+                });
+                const data = await response.json();
+                responseDiv.innerHTML = JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseDiv.innerHTML = 'Error: ' + error.message;
+            }
+        }
+
+        async function deleteFromK3s() {
+            const developerId = document.getElementById('developer_id').value;
+            if (!developerId || !confirm('Delete all deployments for ' + developerId + '?')) return;
+            
+            const responseDiv = document.getElementById('response');
+            responseDiv.style.display = 'block';
+            responseDiv.innerHTML = 'Deleting...';
+
+            try {
+                const response = await fetch('${module.api_gateway.api_endpoint}/deploy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        operation: 'delete',
+                        developer_id: developerId
                     })
                 });
                 const data = await response.json();

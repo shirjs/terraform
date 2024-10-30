@@ -1,8 +1,22 @@
 import os
 import json
 import base64
+import hashlib
 from github import Github
 from datetime import datetime
+
+def generate_nodeport(developer_id, deploy_name):
+    """Generate a predictable NodePort in the valid range (30000-32767)
+    based on the developer_id and deploy_name."""
+    # Create a hash of developer_id and deploy_name
+    hash_input = f"{developer_id}-{deploy_name}"
+    hash_value = int(hashlib.md5(hash_input.encode()).hexdigest(), 16)
+    
+    # Convert hash to a number in valid NodePort range (30000-32767)
+    port_range = 32767 - 30000
+    nodeport = 30000 + (hash_value % port_range)
+    
+    return nodeport
 
 def create_manifests(developer_id, image_name, port):
     """Create Kubernetes manifest strings."""
@@ -10,6 +24,9 @@ def create_manifests(developer_id, image_name, port):
     deploy_name = image_name.split('/')[-1].split(':')[0].replace('.', '-').replace('_', '-')
     timestamp = int(datetime.now().timestamp())
     unique_name = f"{deploy_name}-{timestamp}"
+    
+    # Generate predictable NodePort
+    nodeport = generate_nodeport(developer_id, deploy_name)
     
     # Create namespace manifest
     namespace_yaml = f"""apiVersion: v1
@@ -38,6 +55,8 @@ kind: Deployment
 metadata:
   name: {unique_name}
   namespace: {developer_id}
+  annotations:
+    app.kubernetes.io/instance: {unique_name}
 spec:
   replicas: 1
   selector:
@@ -72,34 +91,23 @@ spec:
   ports:
   - port: {port}
     targetPort: {port}
+    nodePort: {nodeport}  # Specify the nodePort explicitly
   selector:
     app: {unique_name}
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {unique_name}
-  namespace: {developer_id}
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-spec:
-  rules:
-  - host: {unique_name}.{developer_id}.apps.k3s.company.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: {unique_name}
-            port:
-              number: {port}
 """
+
+    # Get instance IP from environment variable
+    instance_ip = os.environ.get('K3S_INSTANCE_IP')
+    if not instance_ip:
+        raise ValueError("K3S_INSTANCE_IP environment variable is not set")
+
     return {
         'namespace': namespace_yaml,
         'application': app_yaml,
         'unique_name': unique_name,
-        'developer_id': developer_id
+        'developer_id': developer_id,
+        'app_url': f"http://{instance_ip}:{nodeport}",
+        'nodeport': nodeport
     }
 
 def update_github_repo(manifests, github_token, repo_name, branch='main'):
@@ -140,7 +148,8 @@ def update_github_repo(manifests, github_token, repo_name, branch='main'):
         
         return {
             'status': 'success',
-            'app_url': f"http://{manifests['unique_name']}.{manifests['developer_id']}.apps.k3s.company.com",
+            'app_url': manifests['app_url'],
+            'nodeport': manifests['nodeport'],
             'manifest_path': app_path
         }
         
@@ -150,62 +159,105 @@ def update_github_repo(manifests, github_token, repo_name, branch='main'):
             'message': str(e)
         }
 
+def delete_developer_manifests(developer_id, github_token, repo_name, branch='main'):
+    """Delete all manifests for a developer."""
+    try:
+        g = Github(github_token)
+        repo = g.get_repo(repo_name)
+        base_path = f"manifests/{developer_id}"
+        
+        # Get all contents recursively
+        contents = repo.get_contents(base_path, ref=branch)
+        while contents:
+            file_content = contents.pop(0)
+            if file_content.type == "dir":
+                contents.extend(repo.get_contents(file_content.path, ref=branch))
+            else:
+                repo.delete_file(
+                    file_content.path,
+                    f"Delete manifest for {developer_id}",
+                    file_content.sha,
+                    branch=branch
+                )
+        return {'status': 'success', 'message': f'Deleted all manifests for {developer_id}'}
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
+
 def lambda_handler(event, context):
     """Lambda handler to process requests and update GitHub."""
     try:
+        # Validate required environment variables
+        required_env_vars = ['GITHUB_TOKEN', 'GITHUB_REPO', 'K3S_INSTANCE_IP']
+        missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
+        if missing_vars:
+            raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
         # Get parameters from event
         body = json.loads(event['body'])
         developer_id = body['developer_id']
-        image_name = body['image_name']
-        port = int(body['port'])
+        operation = body.get('operation', 'create')
         
         # Get GitHub token from environment
         github_token = os.environ['GITHUB_TOKEN']
         repo_name = os.environ['GITHUB_REPO']
         
-        # Create manifests
-        manifests = create_manifests(developer_id, image_name, port)
-        
-        # Update GitHub repository
-        result = update_github_repo(manifests, github_token, repo_name)
+        if operation == 'delete':
+            result = delete_developer_manifests(developer_id, github_token, repo_name)
+        else:
+            image_name = body['image_name']
+            port = int(body['port'])
+            manifests = create_manifests(developer_id, image_name, port)
+            result = update_github_repo(manifests, github_token, repo_name)
         
         if result['status'] == 'success':
             return {
                 'statusCode': 200,
                 'headers': {
-                  'Content-Type': 'application/json',
-                  'Access-Control-Allow-Origin': '*',
-                  'Access-Control-Allow-Headers': 'Content-Type',
-                  'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
                 },
                 'body': json.dumps({
-                    'message': 'Manifests updated successfully',
-                    'app_url': result['app_url'],
-                    'manifest_path': result['manifest_path']
+                    'message': 'operation completed successfully',
+                    **(result if operation == 'create' else {})
                 })
             }
         else:
             return {
                 'statusCode': 500,
                 'headers': {
-                  'Content-Type': 'application/json',
-                  'Access-Control-Allow-Origin': '*',
-                  'Access-Control-Allow-Headers': 'Content-Type',
-                  'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
                 },
                 'body': json.dumps({
                     'message': f"Error updating manifests: {result['message']}"
                 })
             }
             
+    except ValueError as ve:
+        return {
+            'statusCode': 400,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+            },
+            'body': json.dumps({
+                'message': str(ve)
+            })
+        }
     except Exception as e:
         return {
             'statusCode': 500,
             'headers': {
-                  'Content-Type': 'application/json',
-                  'Access-Control-Allow-Origin': '*',
-                  'Access-Control-Allow-Headers': 'Content-Type',
-                  'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
             },
             'body': json.dumps({
                 'message': f"Error processing request: {str(e)}"

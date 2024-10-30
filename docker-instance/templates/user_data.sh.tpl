@@ -94,6 +94,81 @@ data:
   }
 EOF
 
+# Install ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Create ArgoCD service and ingress configuration
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server-nodeport
+  namespace: argocd
+spec:
+  type: NodePort
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8080
+      nodePort: 30443
+  selector:
+    app.kubernetes.io/name: argocd-server
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server-ingress
+  namespace: argocd
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
+EOF
+
+# Wait for ArgoCD to be ready
+echo "Waiting for ArgoCD pods to be ready..."
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
+
+# Create ArgoCD application configuration
+cat <<EOF > /home/ubuntu/argocd-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lambda-deployments
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shirjs/argo-follow.git
+    targetRevision: HEAD
+    path: manifests
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+EOF
+
+kubectl apply -f /home/ubuntu/argocd-app.yaml
+
+
 cat <<'DEPLOYEOF' > /home/ubuntu/deploy.sh
 ${deploy_script}
 DEPLOYEOF
