@@ -236,6 +236,6 @@ EOT
 module "github_manifest_page" {
   source = "../../modules/s3_object"
   bucket_id = module.website.bucket_name
-  object_key = "index.html"
+  object_key = "another.html"
   html_content = local.github_manifest_html
 }

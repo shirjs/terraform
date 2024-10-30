@@ -1,6 +1,7 @@
+# removed /index.html
 output "website_url" {
   description = "url of the s3 static website"
-  value = "http://${aws_s3_bucket.website_bucket.bucket_regional_domain_name}/index.html"
+  value = "http://${aws_s3_bucket.website_bucket.bucket_regional_domain_name}"
 }
 
 output "bucket_name" {
